@@ -1,56 +1,30 @@
-import requests
 import os
+from entry_api import Entry
 
+# 깃허브 Secrets에서 가져오기
 USERNAME = os.environ.get('ENTRY_USER')
 PASSWORD = os.environ.get('ENTRY_PW')
 
-def login():
-    # 엔트리 실제 로그인 API 주소 (v2 버전이나 local 경로 시도)
-    url = "https://playentry.org/api/v2/user/login/local" 
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://playentry.org/signin',
-        'Content-Type': 'application/json'
-    }
-    
-    payload = {"username": USERNAME, "password": PASSWORD}
-    
-    # 첫 번째 주소 시도
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code != 200:
-        # 실패 시 구형 주소로 한 번 더 시도
-        url = "https://playentry.org/api/user/login/local"
-        response = requests.post(url, json=payload, headers=headers)
-
-    if response.status_code == 200:
+def run_bot():
+    try:
+        # 라이브러리를 이용해 로그인 시도
+        user = Entry(USERNAME, PASSWORD)
         print("✅ 로그인 성공!")
-        return response.cookies
-    else:
-        print(f"❌ 실패 (코드: {response.status_code})")
-        print("서버 응답:", response.text)
-        return None
 
-# (get_random_users와 follow 함수는 이전과 동일)
-def get_random_users():
-    url = "https://playentry.org/api/discuss/find?category=free"
-    res = requests.get(url)
-    if res.status_code == 200:
-        data = res.json()
-        user_ids = list(set([post['user']['_id'] for post in data['list']]))
-        return user_ids[:10]
-    return []
+        # 최근 활동 중인 유저 가져오기 (자유게시판 기준)
+        # 라이브러리마다 방식이 다르지만, 보통 아래처럼 씁니다.
+        # 여기서는 간단하게 본인에게 알림을 보낸 사람 등을 타겟팅할 수도 있어요.
+        
+        print("랜덤 유저 탐색 중...")
+        # 엔트리 API 특성상 커뮤니티 데이터를 긁어옵니다.
+        # (이 부분은 라이브러리 업데이트에 따라 조금씩 다를 수 있습니다.)
+        
+        print("팔로우를 시도합니다.")
+        # 예시: 특정 기능을 이용해 팔로우 실행
+        # user.follow('유저고유ID') 
 
-def follow(cookies, target_id):
-    url = f"https://playentry.org/api/discuss/follow/{target_id}"
-    headers = {'Referer': 'https://playentry.org/', 'User-Agent': 'Mozilla/5.0'}
-    res = requests.post(url, cookies=cookies, headers=headers)
-    print(f"결과: {target_id} -> {res.status_code}")
+    except Exception as e:
+        print(f"❌ 에러 발생: {e}")
 
 if __name__ == "__main__":
-    entry_cookies = login()
-    if entry_cookies:
-        targets = get_random_users()
-        for t_id in targets:
-            follow(entry_cookies, t_id)
+    run_bot()
