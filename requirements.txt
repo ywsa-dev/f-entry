@@ -1,1 +1,1 @@
-requests
+entry-api
