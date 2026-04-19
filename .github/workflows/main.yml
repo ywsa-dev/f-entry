@@ -1,0 +1,21 @@
+name: Entry Auto Follow Bot
+
+on:
+  workflow_dispatch: # 이 설정만 남기면 자동 실행이 꺼지고 '수동 버튼'만 생깁니다.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run Bot
+        env:
+          ENTRY_USER: ${{ secrets.ENTRY_USER }}
+          ENTRY_PW: ${{ secrets.ENTRY_PW }}
+        run: python bot.py
