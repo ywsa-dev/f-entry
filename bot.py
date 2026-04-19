@@ -1,60 +1,59 @@
 import requests
 import os
-import random
 
-# 깃허브 Secrets 설정값
 USERNAME = os.environ.get('ENTRY_USER')
 PASSWORD = os.environ.get('ENTRY_PW')
 
-def run_bot():
-    # 1. 사람처럼 보이게 만드는 '위장용' 정보
+def login():
+    # 세션을 만들어서 쿠키를 자동으로 관리하게 합니다.
+    session = requests.Session()
+    
+    # 1. 먼저 메인 페이지에 접속해서 기본 쿠키를 받습니다.
+    session.get("https://playentry.org")
+    
+    # 2. 로그인 주소 (가장 확률 높은 곳)
+    url = "https://playentry.org/api/user/login/local"
+    
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
         'Referer': 'https://playentry.org/signin',
-        'Origin': 'https://playentry.org',
         'Content-Type': 'application/json'
     }
-
-    session = requests.Session()
-
-    # 2. 로그인 시도 (가장 최신화된 주소)
-    login_url = "https://playentry.org/api/user/login/local"
-    login_data = {"username": USERNAME, "password": PASSWORD}
     
-    login_res = session.post(login_url, json=login_data, headers=headers)
+    payload = {"username": USERNAME, "password": PASSWORD}
     
-    if login_res.status_code != 200:
-        print(f"❌ 로그인 실패 (코드: {login_res.status_code})")
-        return
-
-    print("✅ 로그인 성공!")
-
-    # 3. 자유게시판에서 최근 활동 중인 유저 10명 찾기
-    list_url = "https://playentry.org/api/discuss/find?category=free"
-    list_res = session.get(list_url, headers=headers)
+    # 3. 로그인 시도
+    res = session.post(url, json=payload, headers=headers)
     
-    if list_res.status_code == 200:
-        data = list_res.json()
-        # 최근 글 쓴 사람들의 고유 ID 추출
-        user_ids = list(set([item['user']['_id'] for item in data['list'] if 'user' in item]))
-        targets = user_ids[:10]
-        
-        print(f"탐색 완료: {len(targets)}명을 찾았습니다.")
-
-        # 4. 팔로우 실행
-        for t_id in targets:
-            follow_url = f"https://playentry.org/api/discuss/follow/{t_id}"
-            # 팔로우할 때는 리퍼러를 프로필 주소로 바꿔서 더 사람처럼 위장
-            headers['Referer'] = f'https://playentry.org/profile/{t_id}'
-            
-            f_res = session.post(follow_url, headers=headers)
-            if f_res.status_code == 200:
-                print(f"✨ {t_id} 팔로우 성공!")
-            else:
-                print(f"⚠️ {t_id} 실패 (코드: {f_res.status_code})")
+    if res.status_code == 200:
+        print("✅ 드디어 로그인 성공!")
+        return session
     else:
-        print("❌ 유저 목록을 가져오지 못했습니다.")
+        print(f"❌ 실패 (코드: {res.status_code})")
+        # 실패하면 다른 주소로 딱 한 번만 더 시도
+        url2 = "https://playentry.org/api/v2/user/login/local"
+        res2 = session.post(url2, json=payload, headers=headers)
+        if res2.status_code == 200:
+            print("✅ 재시도로 로그인 성공!")
+            return session
+        return None
+
+def follow_random_users(session):
+    # 자유게시판에서 유저 가져오기
+    list_url = "https://playentry.org/api/discuss/find?category=free"
+    res = session.get(list_url)
+    if res.status_code == 200:
+        data = res.json()
+        user_ids = list(set([item['user']['_id'] for item in data['list'] if 'user' in item]))
+        
+        for t_id in user_ids[:10]:
+            f_url = f"https://playentry.org/api/discuss/follow/{t_id}"
+            f_res = session.post(f_url, headers={'Referer': f'https://playentry.org/profile/{t_id}'})
+            print(f"결과: {t_id} -> {f_res.status_code}")
 
 if __name__ == "__main__":
-    run_bot()
+    s = login()
+    if s:
+        follow_random_users(s)
+    else:
+        print("😭 엔트리 보안이 너무 강력합니다. 나중에 다시 시도해봐야 할 것 같아요.")
