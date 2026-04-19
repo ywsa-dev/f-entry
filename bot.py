@@ -1,30 +1,60 @@
+import requests
 import os
-from entry_api import Entry
+import random
 
-# 깃허브 Secrets에서 가져오기
+# 깃허브 Secrets 설정값
 USERNAME = os.environ.get('ENTRY_USER')
 PASSWORD = os.environ.get('ENTRY_PW')
 
 def run_bot():
-    try:
-        # 라이브러리를 이용해 로그인 시도
-        user = Entry(USERNAME, PASSWORD)
-        print("✅ 로그인 성공!")
+    # 1. 사람처럼 보이게 만드는 '위장용' 정보
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://playentry.org/signin',
+        'Origin': 'https://playentry.org',
+        'Content-Type': 'application/json'
+    }
 
-        # 최근 활동 중인 유저 가져오기 (자유게시판 기준)
-        # 라이브러리마다 방식이 다르지만, 보통 아래처럼 씁니다.
-        # 여기서는 간단하게 본인에게 알림을 보낸 사람 등을 타겟팅할 수도 있어요.
-        
-        print("랜덤 유저 탐색 중...")
-        # 엔트리 API 특성상 커뮤니티 데이터를 긁어옵니다.
-        # (이 부분은 라이브러리 업데이트에 따라 조금씩 다를 수 있습니다.)
-        
-        print("팔로우를 시도합니다.")
-        # 예시: 특정 기능을 이용해 팔로우 실행
-        # user.follow('유저고유ID') 
+    session = requests.Session()
 
-    except Exception as e:
-        print(f"❌ 에러 발생: {e}")
+    # 2. 로그인 시도 (가장 최신화된 주소)
+    login_url = "https://playentry.org/api/user/login/local"
+    login_data = {"username": USERNAME, "password": PASSWORD}
+    
+    login_res = session.post(login_url, json=login_data, headers=headers)
+    
+    if login_res.status_code != 200:
+        print(f"❌ 로그인 실패 (코드: {login_res.status_code})")
+        return
+
+    print("✅ 로그인 성공!")
+
+    # 3. 자유게시판에서 최근 활동 중인 유저 10명 찾기
+    list_url = "https://playentry.org/api/discuss/find?category=free"
+    list_res = session.get(list_url, headers=headers)
+    
+    if list_res.status_code == 200:
+        data = list_res.json()
+        # 최근 글 쓴 사람들의 고유 ID 추출
+        user_ids = list(set([item['user']['_id'] for item in data['list'] if 'user' in item]))
+        targets = user_ids[:10]
+        
+        print(f"탐색 완료: {len(targets)}명을 찾았습니다.")
+
+        # 4. 팔로우 실행
+        for t_id in targets:
+            follow_url = f"https://playentry.org/api/discuss/follow/{t_id}"
+            # 팔로우할 때는 리퍼러를 프로필 주소로 바꿔서 더 사람처럼 위장
+            headers['Referer'] = f'https://playentry.org/profile/{t_id}'
+            
+            f_res = session.post(follow_url, headers=headers)
+            if f_res.status_code == 200:
+                print(f"✨ {t_id} 팔로우 성공!")
+            else:
+                print(f"⚠️ {t_id} 실패 (코드: {f_res.status_code})")
+    else:
+        print("❌ 유저 목록을 가져오지 못했습니다.")
 
 if __name__ == "__main__":
     run_bot()
